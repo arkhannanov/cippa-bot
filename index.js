@@ -84,7 +84,7 @@ bot.on('message', async (ctx) => {
                 if (phoneRegex.test(ctx.message.text)) {
                     state.phone = ctx.message.text;
                     state.step = 3;
-                    await ctx.reply('Код Агента:');
+                    await ctx.reply('Код Агента (укажите 0, если кода нет):');
                 } else {
                     await ctx.reply('Введите правильный номер телефона, пожалуйста. Пример: +7234567890 или 8234567890');
                 }
@@ -94,7 +94,14 @@ bot.on('message', async (ctx) => {
                 state.agentCode = ctx.message.text;
 
                 // Отправка собранных данных в группу
-                await bot.api.sendMessage(groupChatId, `Новый пользователь:\nИмя: ${state.name}\nТелефон: ${state.phone}\nКод Агента: ${state.agentCode}`);
+                await bot.api.sendMessage(
+                    groupChatId,
+                    `Новый пользователь:\n` +
+                    `ID: ${ctx.from.id}\n` + // Добавляем ID пользователя
+                    `Имя: ${state.name}\n` +
+                    `Телефон: ${state.phone}\n` +
+                    `Код Агента: ${state.agentCode}`
+                );
 
                 // Ответ пользователю
                 await ctx.reply(`Поздравляем, ${state.name}! Вы подключены к системе безопасности ЦИППА. \n` + '\n'+
