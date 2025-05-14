@@ -24,7 +24,8 @@ bot.command('start', async (ctx) => {
             .url('Ссылка на сайт', 'http://cippa.ru/');
 
         await ctx.replyWithPhoto(new InputFile(filePath), {
-            caption: 'Привет, это ЦИППА бот!\n' +
+            caption:
+                'Привет, это ЦИППА бот!\n' +
                 'Я могу подключить тебя к системе ЦИППА прямо сейчас.\n' +
                 'ЦИППА - твоя финансовая безопасность, правовая поддержка и юридическая защита. \n\n\n' +
                 'Вы можете использовать команды:\n/start - Запустить бота\n/faq - Часто задаваемые вопросы',
@@ -70,47 +71,72 @@ bot.on('message', async (ctx) => {
         const state = userStates[ctx.from.id];
 
         if (!state) {
-            return; // Если состояние не найдено, игнорируем
+            return; // Если состояние пользователя не найдено, игнорируем сообщение
         }
 
         switch (state.step) {
             case 1:
                 state.name = ctx.message.text;
                 state.step = 2;
-                await ctx.reply('Номер телефона:');
+                await ctx.reply('Пожалуйста, укажите ваш номер телефона в формате +79998888888:');
                 break;
+
             case 2:
-                const phoneRegex = /^[+]?[0-9]{10,15}$/;  // Простая регулярка для номера телефона
+                const phoneRegex = /^\+7\d{10}$/; // Регулярное выражение для проверки номера формата +79998888888
                 if (phoneRegex.test(ctx.message.text)) {
                     state.phone = ctx.message.text;
                     state.step = 3;
-                    await ctx.reply('Код Агента (укажите 0, если кода нет):');
+                    await ctx.reply('Введите ваш Код Агента (если у вас его нет, укажите 0):');
                 } else {
-                    await ctx.reply('Введите правильный номер телефона, пожалуйста. Пример: +7234567890 или 8234567890');
+                    await ctx.reply('Неверный формат номера. Пожалуйста, введите номер в формате +79998888888:');
                 }
                 break;
 
             case 3:
                 state.agentCode = ctx.message.text;
 
-                // Отправка собранных данных в группу
-                await bot.api.sendMessage(
-                    groupChatId,
-                    `Новый пользователь:\n` +
-                    `ID: ${ctx.from.id}\n` + // Добавляем ID пользователя
-                    `Имя: ${state.name}\n` +
-                    `Телефон: ${state.phone}\n` +
-                    `Код Агента: ${state.agentCode}`
-                );
+                const usernameOrFallback = ctx.from.username
+                    ? `@${ctx.from.username}` // Юзернейм в формате @username
+                    : ctx.from.first_name || ctx.from.id; // Или имя, или ID телеграм
 
-                // Ответ пользователю
-                await ctx.reply(`Поздравляем, ${state.name}! Вы подключены к системе безопасности ЦИППА. \n` + '\n'+
-                    'В течении 24 часов Вам станут доступны бесплатные консультации, без ограничений. \n' +
-                    '\n' +
-                    '+79005557702 это номер ЦИППА, добавьте его в контакты прямо сейчас. \n');
+                // Получение аватара пользователя
+                const profilePhotos = await bot.api.getUserProfilePhotos(ctx.from.id).catch(() => null);
 
-                // Удаляем состояние пользователя
+                if (profilePhotos && profilePhotos.total_count > 0) {
+                    const fileId = profilePhotos.photos[0][0].file_id; // Берем первый file_id из первой фотографии
+                    await bot.api.sendPhoto(
+                        groupChatId,
+                        fileId,
+                        {
+                            caption:
+                                `Новый пользователь:\n` +
+                                `Имя в Telegram: ${usernameOrFallback}\n` +
+                                `Имя: ${state.name}\n` +
+                                `Телефон: ${state.phone}\n` +
+                                `Код Агента: ${state.agentCode}`,
+                        }
+                    );
+                } else {
+                    // Если аватарки нет
+                    await bot.api.sendMessage(
+                        groupChatId,
+                        `Новый пользователь:\n` +
+                        `Имя в Telegram: ${usernameOrFallback}\n` +
+                        `Имя: ${state.name}\n` +
+                        `Телефон: ${state.phone}\n` +
+                        `Код Агента: ${state.agentCode}\n` +
+                        `Аватарка отсутствует.`
+                    );
+                }
+
+                // Все данные собраны — удаляем состояние
                 delete userStates[ctx.from.id];
+                await ctx.reply('Спасибо за предоставленные данные! Мы свяжемся с вами в ближайшее время.');
+                break;
+
+            default:
+                await ctx.reply('Произошла ошибка. Попробуйте начать заново /start.');
+                delete userStates[ctx.from.id]; // Удаляем состояние на случай сбоя
                 break;
         }
     } catch (error) {
